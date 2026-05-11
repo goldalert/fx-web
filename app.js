@@ -1,6 +1,6 @@
 // --- CONFIGURATION ---
 const API_KEY = 'a516f166d60743ecb6a85d5e430e87a3';
-const REFRESH_INTERVAL = 120000; // 2 minutes (120,000ms)
+const REFRESH_INTERVAL = 120000; // 2 minutes
 
 let activeAlerts = [];
 
@@ -17,33 +17,31 @@ const toast = document.getElementById('notification-toast');
 const activeAlertsContainer = document.getElementById('active-alerts-container');
 
 /**
- * Initialize the Mini App and fetch Telegram User Data
+ * Initialize Mini App and retrieve Telegram User Data
  */
 async function init() {
-    // Check if running inside Telegram
+    // Check if Telegram WebApp is available
     if (window.Telegram && window.Telegram.WebApp) {
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
 
-        // FEATURE: Display personalized username on the home screen
+        // DISPLAY USERNAME: Grabs the first name from Telegram profile
         const user = tg.initDataUnsafe?.user;
         if (user) {
             const firstName = user.first_name || "Trader";
-            // Updates the <h1> span from your index.html
-            const titleSpan = document.querySelector('h1 span');
-            if (titleSpan) {
-                titleSpan.textContent = firstName;
+            // Update the span in your <h1> tag
+            const nameDisplay = document.querySelector('h1 span');
+            if (nameDisplay) {
+                nameDisplay.textContent = firstName;
             }
-            console.log("Mini App initialized for: " + firstName);
         }
     }
 
-    // Initial price fetch
     const price = await fetchPrice();
     if (price) checkAllAlerts(price);
     
-    // Set auto-refresh interval
+    // Set auto-refresh
     setInterval(async () => {
         const newPrice = await fetchPrice();
         if (newPrice) checkAllAlerts(newPrice);
@@ -51,7 +49,7 @@ async function init() {
 }
 
 /**
- * Fetch current price from Twelve Data API
+ * Fetch current price from API
  */
 async function fetchPrice() {
     try {
@@ -78,18 +76,11 @@ function updateUI(price) {
 }
 
 /**
- * Local check for browser-based testing (non-Telegram)
+ * Local UI rendering and checks
  */
 function checkAllAlerts(currentPrice) {
-    activeAlerts.forEach((alert, index) => {
+    activeAlerts.forEach((alert) => {
         if (alert.notificationsSent >= alert.maxNotifications) return;
-
-        const now = Date.now();
-        const intervalMs = alert.intervalMinutes * 60000;
-        
-        if (alert.notificationsSent > 0 && now - alert.lastNotificationTime < intervalMs) {
-            return;
-        }
 
         const isMet = alert.direction === 'up' 
             ? currentPrice >= alert.target 
@@ -97,25 +88,17 @@ function checkAllAlerts(currentPrice) {
 
         if (isMet) {
             alert.notificationsSent++;
-            alert.lastNotificationTime = now;
             renderAlerts();
-            // Local browser alert
-            alert(`${alert.asset} Alert: $${currentPrice}`);
         }
     });
 }
 
-/**
- * Render active alerts in the UI
- */
 function renderAlerts() {
     alertsList.innerHTML = '';
-    
     if (activeAlerts.length === 0) {
         activeAlertsContainer.classList.add('hidden');
         return;
     }
-    
     activeAlertsContainer.classList.remove('hidden');
     
     activeAlerts.forEach((alert, index) => {
@@ -139,7 +122,7 @@ window.removeAlert = (index) => {
 };
 
 /**
- * FEATURE: Set Alert and send to Telegram Bot
+ * Handle Set Alert Click
  */
 alertBtn.addEventListener('click', async () => {
     const targetVal = parseFloat(targetInput.value);
@@ -152,9 +135,9 @@ alertBtn.addEventListener('click', async () => {
         currentPrice = await fetchPrice();
     }
 
-    if (!currentPrice) return alert("Waiting for market data... try again in a second.");
+    if (!currentPrice) return alert("Waiting for market data...");
     
-    const newAlert = {
+    const alertData = {
         asset: assetSelect.value,
         target: targetVal,
         direction: targetVal > currentPrice ? 'up' : 'down',
@@ -162,22 +145,15 @@ alertBtn.addEventListener('click', async () => {
         intervalMinutes: parseInt(intervalInput.value)
     };
 
-    // --- CRITICAL FIX: Sending data back to the Telegram Bot ---
+    // --- FIX: SEND DATA TO TELEGRAM BOT ---
     if (window.Telegram && window.Telegram.WebApp) {
-        // This method triggers 'web_app_data' in your Google Apps Script
-        // Telegram automatically includes your Chat ID in the wrapper message
-        window.Telegram.WebApp.sendData(JSON.stringify(newAlert));
-        
-        // Note: sendData usually closes the Mini App automatically
+        // Automatically includes user context/Chat ID
+        window.Telegram.WebApp.sendData(JSON.stringify(alertData));
     } else {
-        // Fallback for testing in a normal browser
-        activeAlerts.push({
-            ...newAlert,
-            notificationsSent: 0,
-            lastNotificationTime: 0
-        });
+        // Browser fallback
+        activeAlerts.push({ ...alertData, notificationsSent: 0, lastNotificationTime: 0 });
         renderAlerts();
-        console.log("Alert data (Browser Mode):", newAlert);
+        alert("Running outside Telegram. ID not sent.");
     }
 
     targetInput.value = '';
@@ -191,5 +167,4 @@ function showSuccessToast() {
     }, 3000);
 }
 
-// Start the app
 init();
