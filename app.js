@@ -154,10 +154,15 @@ alertBtn.addEventListener('click', async () => {
     // Send data to Google Apps Script so it can be saved in Google Sheets
     if (window.Telegram && window.Telegram.WebApp) {
         const telegramData = window.Telegram.WebApp.initDataUnsafe;
-        const chatId = telegramData.user ? telegramData.user.id : null;
+        
+        // Ensure we capture the ID accurately
+        let chatId = telegramData.user ? telegramData.user.id : null;
+
+        console.log("Captured Chat ID:", chatId);
 
         if (!chatId) {
-            console.error("Telegram User ID not found. Ensure the app is opened within Telegram.");
+            alert("User ID not found! Please make sure you are opening this app from the Telegram Bot menu.");
+            return; // Don't proceed without an ID
         }
 
         const payload = {
