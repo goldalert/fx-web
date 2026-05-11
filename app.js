@@ -1,6 +1,6 @@
 // Configuration
-const API_KEY = 'a516f166d60743ecb6a85d5e430e87a3'; 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyK5X1Oe-aPWbFMO7U9aS0EH5PhLRJfb8jxRZOYIsqhiJcYEp7WmAZ5AaRiGD_4rZAm0A/exec';
+const API_KEY = 'a516f166d60743ecb6a85d5e430e87a3';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyK5X1Oe-aPWbFMO7U9aS0EH5PhLRJfb8jxRZOYIsqhiJcYEp7WmAZ5AaRiGD_4rZAm0A/exec'; // Ensure this is your deployed Apps Script URL
 const REFRESH_INTERVAL = 120000; // Updated to 2 minutes (120,000ms) for safer API usage
 
 let activeAlerts = [];
@@ -154,11 +154,14 @@ alertBtn.addEventListener('click', async () => {
     // Send data to Google Apps Script so it can be saved in Google Sheets
     if (window.Telegram && window.Telegram.WebApp) {
         const telegramData = window.Telegram.WebApp.initDataUnsafe;
-
+        console.log("Telegram.WebApp.initDataUnsafe:", telegramData); // Log the full object
+        console.log("Telegram.WebApp.initDataUnsafe.user:", telegramData.user); // Log the user object specifically
+        
         // Ensure we capture the ID accurately from the Telegram session
         const chatId = telegramData.user ? telegramData.user.id : null;
 
         if (!chatId) {
+            console.error("Chat ID is null. User object from initDataUnsafe:", telegramData.user);
             alert("User ID not found! Please open this app from the Telegram Bot menu.");
             return; // Don't proceed without an ID
         }
@@ -168,6 +171,7 @@ alertBtn.addEventListener('click', async () => {
             chatId: chatId,
             isAppRequest: true
         };
+        console.log("Payload being sent to GAS:", payload); // Log the payload before sending
 
         fetch(GAS_URL, {
             method: 'POST',
