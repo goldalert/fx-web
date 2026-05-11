@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Price Tracker & Alert</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>GoldPrice<span>Alert</span></h1>
+            <div id="status-dot" class="dot"></div>
+        </header>
+
+        <main>
+            <section class="price-display">
+                <label id="asset-label">XAU/USD Price</label>
+                <div id="current-price">Loading...</div>
+                <div id="last-updated">Last updated: --:--:--</div>
+                <div class="refresh-note">Note: Price updates automatically every 2 minutes</div>
+            </section>
+
+            <section class="alert-settings">
+                <h3>Set Price Alert</h3>
+                <div class="input-group">
+                    <select id="asset-select">
+                        <option value="XAU/USD">Gold (XAU/USD)</option>
+                        <option value="XAG/USD" disabled>More Coming SOON...</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="target-price" placeholder="Target Price (USD)">
+                </div>
+                <div class="input-group">
+                    <select id="notification-count">
+                        <option value="1">Notify 1 time</option>
+                        <option value="3">Notify 3 times</option>
+                        <option value="5">Notify 5 times</option>
+                        <option value="10">Notify 10 times</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <select id="notification-interval">
+                        <option value="1">Every 1 minute</option>
+                        <option value="5">Every 5 minutes</option>
+                        <option value="15">Every 15 minutes</option>
+                        <option value="30">Every 30 minutes</option>
+                        <option value="60">Every 1 hour</option>
+                    </select>
+                </div>
+                <button id="set-alert-btn" style="width: 100%; margin-top: 10px;">Set Alert</button>
+                <div id="active-alerts-container">
+                    <h4>Active Alerts</h4>
+                    <div id="alerts-list"></div>
+                </div>
+            </section>
+        </main>
+
+        <div id="notification-toast" class="toast-hidden">Alert Set Successfully!</div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
