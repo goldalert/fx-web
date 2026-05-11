@@ -152,17 +152,18 @@ alertBtn.addEventListener('click', async () => {
     activeAlerts.push(newAlert);
 
     // Send data to Google Apps Script so it can be saved in Google Sheets
-    const tg = window.Telegram ? window.Telegram.WebApp : null;
-    
-    if (tg) {
-        // Try to get user ID from initDataUnsafe or initData fallback
-        const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
-        const chatId = user ? user.id : null;
+    if (window.Telegram && window.Telegram.WebApp) {
+        const telegramData = window.Telegram.WebApp.initDataUnsafe;
+        console.log("Telegram.WebApp.initDataUnsafe:", telegramData); // Log the full object
+        console.log("Telegram.WebApp.initDataUnsafe.user:", telegramData.user); // Log the user object specifically
+        
+        // Ensure we capture the ID accurately from the Telegram session
+        const chatId = telegramData.user ? telegramData.user.id : null;
 
         if (!chatId) {
-            console.error("Chat ID is null. User object:", user);
-            alert("Error: Telegram could not identify your account. Please try closing the app and reopening it from the bot button.");
-            return;
+            console.error("Chat ID is null. User object from initDataUnsafe:", telegramData.user);
+            alert("User ID not found! Please open this app from the Telegram Bot menu.");
+            return; // Don't proceed without an ID
         }
 
         const payload = {
