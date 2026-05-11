@@ -154,6 +154,7 @@ alertBtn.addEventListener('click', async () => {
     // Send data to Google Apps Script so it can be saved in Google Sheets
     if (window.Telegram && window.Telegram.WebApp) {
         const telegramData = window.Telegram.WebApp.initDataUnsafe;
+        console.log("Telegram.WebApp.initDataUnsafe:", telegramData); // Log the full object
         
         // Ensure we capture the ID accurately
         let chatId = telegramData.user ? telegramData.user.id : null;
