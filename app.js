@@ -1,5 +1,6 @@
 // Configuration
 const API_KEY = 'a516f166d60743ecb6a85d5e430e87a3'; 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyK5X1Oe-aPWbFMO7U9aS0EH5PhLRJfb8jxRZOYIsqhiJcYEp7WmAZ5AaRiGD_4rZAm0A/exec';
 const REFRESH_INTERVAL = 120000; // Updated to 2 minutes (120,000ms) for safer API usage
 
 let activeAlerts = [];
@@ -145,9 +146,20 @@ alertBtn.addEventListener('click', async () => {
 
     activeAlerts.push(newAlert);
 
-    // Send data to Telegram Bot so it can be saved in Google Sheets
+    // Send data to Google Apps Script so it can be saved in Google Sheets
     if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.sendData(JSON.stringify(newAlert));
+        const telegramData = window.Telegram.WebApp.initDataUnsafe;
+        const payload = {
+            ...newAlert,
+            chatId: telegramData.user ? telegramData.user.id : null,
+            isAppRequest: true
+        };
+
+        fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Required for Google Apps Script cross-origin POST
+            body: JSON.stringify(payload)
+        });
     }
 
     renderAlerts();
