@@ -20,6 +20,11 @@ const activeAlertsContainer = document.getElementById('active-alerts-container')
 
 // Initialize
 async function init() {
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand(); // Good for mobile users
+    }
+
     if ("Notification" in window) {
         await Notification.requestPermission();
     }
@@ -149,9 +154,15 @@ alertBtn.addEventListener('click', async () => {
     // Send data to Google Apps Script so it can be saved in Google Sheets
     if (window.Telegram && window.Telegram.WebApp) {
         const telegramData = window.Telegram.WebApp.initDataUnsafe;
+        const chatId = telegramData.user ? telegramData.user.id : null;
+
+        if (!chatId) {
+            console.error("Telegram User ID not found. Ensure the app is opened within Telegram.");
+        }
+
         const payload = {
             ...newAlert,
-            chatId: telegramData.user ? telegramData.user.id : null,
+            chatId: chatId,
             isAppRequest: true
         };
 
