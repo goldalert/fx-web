@@ -1,6 +1,7 @@
-// --- CONFIGURATION ---
+// Configuration
 const API_KEY = 'a516f166d60743ecb6a85d5e430e87a3';
-const REFRESH_INTERVAL = 120000; // 2 minutes (120,000ms)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxNWAVRepbZfxdxZIzKFFS6vm1edZY0DeQJqc8In-UEvoCo7nnE9-rH792O3_Ll6MueTg/exec';
+const REFRESH_INTERVAL = 120000; // Updated to 2 minutes (120,000ms) for safer API usage
 
 let activeAlerts = [];
 
@@ -13,46 +14,29 @@ const alertsList = document.getElementById('alerts-list');
 const assetSelect = document.getElementById('asset-select');
 const countInput = document.getElementById('notification-count');
 const intervalInput = document.getElementById('notification-interval');
+const assetLabel = document.getElementById('asset-label');
 const toast = document.getElementById('notification-toast');
 const activeAlertsContainer = document.getElementById('active-alerts-container');
 
-/**
- * Initialize the Mini App and fetch Telegram User Data
- */
+// Initialize
 async function init() {
-    // Check if running inside Telegram
     if (window.Telegram && window.Telegram.WebApp) {
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-
-        // FEATURE: Display personalized username on the home screen
-        const user = tg.initDataUnsafe?.user;
-        if (user) {
-            const firstName = user.first_name || "Trader";
-            // Updates the <h1> span from your index.html
-            const titleSpan = document.querySelector('h1 span');
-            if (titleSpan) {
-                titleSpan.textContent = firstName;
-            }
-            console.log("Mini App initialized for: " + firstName);
-        }
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand(); // Good for mobile users
     }
 
-    // Initial price fetch
+    if ("Notification" in window) {
+        await Notification.requestPermission();
+    }
     const price = await fetchPrice();
     if (price) checkAllAlerts(price);
     
-    // Set auto-refresh interval
     setInterval(async () => {
         const newPrice = await fetchPrice();
         if (newPrice) checkAllAlerts(newPrice);
     }, REFRESH_INTERVAL);
 }
 
-/**
- * Fetch current price from Twelve Data API
- */
 async function fetchPrice() {
     try {
         const symbol = assetSelect.value;
@@ -77,9 +61,6 @@ function updateUI(price) {
     updateEl.textContent = `Last updated: ${now.toLocaleTimeString()}`;
 }
 
-/**
- * Local check for browser-based testing (non-Telegram)
- */
 function checkAllAlerts(currentPrice) {
     activeAlerts.forEach((alert, index) => {
         if (alert.notificationsSent >= alert.maxNotifications) return;
@@ -96,18 +77,25 @@ function checkAllAlerts(currentPrice) {
             : currentPrice <= alert.target;
 
         if (isMet) {
+            sendNotification(currentPrice, alert.asset);
             alert.notificationsSent++;
             alert.lastNotificationTime = now;
             renderAlerts();
-            // Local browser alert
-            alert(`${alert.asset} Alert: $${currentPrice}`);
         }
     });
 }
 
-/**
- * Render active alerts in the UI
- */
+function sendNotification(price, asset) {
+    if (Notification.permission === "granted") {
+        new Notification(`${asset} Price Alert!`, {
+            body: `${asset} has reached your target! Current price: $${price}`,
+            icon: "https://cdn-icons-png.flaticon.com/512/272/272530.png"
+        });
+    } else {
+        alert(`${asset} Alert: $${price}`);
+    }
+}
+
 function renderAlerts() {
     alertsList.innerHTML = '';
     
@@ -138,15 +126,12 @@ window.removeAlert = (index) => {
     renderAlerts();
 };
 
-/**
- * FEATURE: Set Alert and send to Telegram Bot
- */
 alertBtn.addEventListener('click', async () => {
     const targetVal = parseFloat(targetInput.value);
     if (isNaN(targetVal)) return alert("Please enter a target price");
 
-    let currentPriceText = priceEl.textContent.replace('$', '');
-    let currentPrice = parseFloat(currentPriceText);
+    // Instantly determine direction using UI price to avoid API delay/failure blocking
+    let currentPrice = parseFloat(priceEl.textContent.replace('$', ''));
     
     if (isNaN(currentPrice)) {
         currentPrice = await fetchPrice();
@@ -159,27 +144,42 @@ alertBtn.addEventListener('click', async () => {
         target: targetVal,
         direction: targetVal > currentPrice ? 'up' : 'down',
         maxNotifications: parseInt(countInput.value),
-        intervalMinutes: parseInt(intervalInput.value)
+        intervalMinutes: parseInt(intervalInput.value),
+        notificationsSent: 0,
+        lastNotificationTime: 0
     };
 
-    // --- CRITICAL FIX: Sending data back to the Telegram Bot ---
-    if (window.Telegram && window.Telegram.WebApp) {
-        // This method triggers 'web_app_data' in your Google Apps Script
-        // Telegram automatically includes your Chat ID in the wrapper message
-        window.Telegram.WebApp.sendData(JSON.stringify(newAlert));
-        
-        // Note: sendData usually closes the Mini App automatically
-    } else {
-        // Fallback for testing in a normal browser
-        activeAlerts.push({
+    activeAlerts.push(newAlert);
+
+    // Send data to Google Apps Script so it can be saved in Google Sheets
+    const tg = window.Telegram ? window.Telegram.WebApp : null;
+    
+    if (tg) {
+        // Try to get user ID from initDataUnsafe or initData fallback
+        const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+        const chatId = user ? user.id : null;
+
+        if (!chatId) {
+            console.error("Chat ID is null. User object:", user);
+            alert("Error: Telegram could not identify your account. Please try closing the app and reopening it from the bot button.");
+            return;
+        }
+
+        const payload = {
             ...newAlert,
-            notificationsSent: 0,
-            lastNotificationTime: 0
+            chatId: chatId,
+            isAppRequest: true
+        };
+        console.log("Payload being sent to GAS:", payload); // Log the payload before sending
+
+        fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Required for Google Apps Script cross-origin POST
+            body: JSON.stringify(payload)
         });
-        renderAlerts();
-        console.log("Alert data (Browser Mode):", newAlert);
     }
 
+    renderAlerts();
     targetInput.value = '';
     showSuccessToast();
 });
@@ -190,6 +190,4 @@ function showSuccessToast() {
         toast.classList.add('toast-hidden');
     }, 3000);
 }
-
-// Start the app
 init();
