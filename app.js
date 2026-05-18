@@ -1,7 +1,7 @@
 // Configuration
 const API_KEY = 'a516f166d60743ecb6a85d5e430e87a3';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxNWAVRepbZfxdxZIzKFFS6vm1edZY0DeQJqc8In-UEvoCo7nnE9-rH792O3_Ll6MueTg/exec';
-const REFRESH_INTERVAL = 120000; // Updated to 2 minutes (120,000ms) for safer API usage
+const REFRESH_INTERVAL = 120000; // 2 minutes
 
 let activeAlerts = [];
 
@@ -17,20 +17,23 @@ const intervalInput = document.getElementById('notification-interval');
 const assetLabel = document.getElementById('asset-label');
 const toast = document.getElementById('notification-toast');
 const activeAlertsContainer = document.getElementById('active-alerts-container');
+const statusDot = document.getElementById('status-dot');
 
 // Initialize
 async function init() {
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand(); // Good for mobile users
+        window.Telegram.WebApp.expand();
     }
 
-    if ("Notification" in window) {
+    // Only request browser notification permission if the API is supported
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         await Notification.requestPermission();
     }
+
     const price = await fetchPrice();
     if (price) checkAllAlerts(price);
-    
+
     setInterval(async () => {
         const newPrice = await fetchPrice();
         if (newPrice) checkAllAlerts(newPrice);
@@ -42,23 +45,42 @@ async function fetchPrice() {
         const symbol = assetSelect.value;
         const response = await fetch(`https://api.twelvedata.com/price?symbol=${symbol}&apikey=${API_KEY}`);
         const data = await response.json();
-        
+
         if (data.price) {
             const price = parseFloat(data.price).toFixed(2);
-            updateUI(price);
+            updateUI(price, true);
             return parseFloat(price);
+        } else {
+            updateUI(null, false);
         }
     } catch (error) {
         console.error("Failed to fetch price:", error);
-        priceEl.textContent = "Error";
+        updateUI(null, false);
     }
     return null;
 }
 
-function updateUI(price) {
-    priceEl.textContent = `$${price}`;
-    const now = new Date();
-    updateEl.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+function updateUI(price, success) {
+    if (success && price !== null) {
+        priceEl.textContent = `$${price}`;
+        const now = new Date();
+        updateEl.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+        setStatusDot(true);
+    } else {
+        priceEl.textContent = 'Error';
+        updateEl.textContent = 'Failed to load price';
+        setStatusDot(false);
+    }
+}
+
+function setStatusDot(online) {
+    if (online) {
+        statusDot.style.backgroundColor = '#4CAF50';
+        statusDot.style.boxShadow = '0 0 8px #4CAF50';
+    } else {
+        statusDot.style.backgroundColor = '#f44336';
+        statusDot.style.boxShadow = '0 0 8px #f44336';
+    }
 }
 
 function checkAllAlerts(currentPrice) {
@@ -67,13 +89,13 @@ function checkAllAlerts(currentPrice) {
 
         const now = Date.now();
         const intervalMs = alert.intervalMinutes * 60000;
-        
+
         if (alert.notificationsSent > 0 && now - alert.lastNotificationTime < intervalMs) {
             return;
         }
 
-        const isMet = alert.direction === 'up' 
-            ? currentPrice >= alert.target 
+        const isMet = alert.direction === 'up'
+            ? currentPrice >= alert.target
             : currentPrice <= alert.target;
 
         if (isMet) {
@@ -86,30 +108,34 @@ function checkAllAlerts(currentPrice) {
 }
 
 function sendNotification(price, asset) {
-    if (Notification.permission === "granted") {
+    // Use browser Notification API only if available and permitted
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification(`${asset} Price Alert!`, {
             body: `${asset} has reached your target! Current price: $${price}`,
-            icon: "https://cdn-icons-png.flaticon.com/512/272/272530.png"
+            icon: 'https://cdn-icons-png.flaticon.com/512/272/272530.png'
         });
     } else {
-        alert(`${asset} Alert: $${price}`);
+        // Fallback: show a visible in-app toast instead of alert()
+        showCustomToast(`🔔 ${asset} Alert: $${price}`);
     }
 }
 
 function renderAlerts() {
     alertsList.innerHTML = '';
-    
+
     if (activeAlerts.length === 0) {
         activeAlertsContainer.classList.add('hidden');
         return;
     }
-    
+
     activeAlertsContainer.classList.remove('hidden');
-    
+
     activeAlerts.forEach((alert, index) => {
         const item = document.createElement('div');
         item.className = 'alert-item';
-        const status = alert.notificationsSent >= alert.maxNotifications ? '✅ Done' : `🔔 ${alert.notificationsSent}/${alert.maxNotifications}`;
+        const status = alert.notificationsSent >= alert.maxNotifications
+            ? '✅ Done'
+            : `🔔 ${alert.notificationsSent}/${alert.maxNotifications}`;
         item.innerHTML = `
             <div>
                 <strong>${alert.asset} at $${alert.target}</strong><br>
@@ -128,17 +154,16 @@ window.removeAlert = (index) => {
 
 alertBtn.addEventListener('click', async () => {
     const targetVal = parseFloat(targetInput.value);
-    if (isNaN(targetVal)) return alert("Please enter a target price");
+    if (isNaN(targetVal)) return alert('Please enter a target price');
 
-    // Instantly determine direction using UI price to avoid API delay/failure blocking
     let currentPrice = parseFloat(priceEl.textContent.replace('$', ''));
-    
+
     if (isNaN(currentPrice)) {
         currentPrice = await fetchPrice();
     }
 
-    if (!currentPrice) return alert("Waiting for market data... try again in a second.");
-    
+    if (!currentPrice) return alert('Waiting for market data... try again in a second.');
+
     const newAlert = {
         asset: assetSelect.value,
         target: targetVal,
@@ -151,17 +176,16 @@ alertBtn.addEventListener('click', async () => {
 
     activeAlerts.push(newAlert);
 
-    // Send data to Google Apps Script so it can be saved in Google Sheets
+    // Send to Google Apps Script to save in Google Sheets and notify via Telegram
     const tg = window.Telegram ? window.Telegram.WebApp : null;
-    
+
     if (tg) {
-        // Try to get user ID from initDataUnsafe or initData fallback
         const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
         const chatId = user ? user.id : null;
 
         if (!chatId) {
-            console.error("Chat ID is null. User object:", user);
-            alert("Error: Telegram could not identify your account. Please try closing the app and reopening it from the bot button.");
+            console.error('Chat ID is null. User object:', user);
+            alert('Error: Telegram could not identify your account. Please close and reopen the app from the bot button.');
             return;
         }
 
@@ -170,11 +194,10 @@ alertBtn.addEventListener('click', async () => {
             chatId: chatId,
             isAppRequest: true
         };
-        console.log("Payload being sent to GAS:", payload); // Log the payload before sending
 
         fetch(GAS_URL, {
             method: 'POST',
-            mode: 'no-cors', // Required for Google Apps Script cross-origin POST
+            mode: 'no-cors',
             body: JSON.stringify(payload)
         });
     }
@@ -185,9 +208,15 @@ alertBtn.addEventListener('click', async () => {
 });
 
 function showSuccessToast() {
+    showCustomToast('Alert Set Successfully!');
+}
+
+function showCustomToast(message) {
+    toast.textContent = message;
     toast.classList.remove('toast-hidden');
     setTimeout(() => {
         toast.classList.add('toast-hidden');
     }, 3000);
 }
+
 init();
